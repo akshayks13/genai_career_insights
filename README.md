@@ -401,7 +401,3 @@ COPY . .
 EXPOSE 3000
 CMD ["npm", "start"]
 ```
-
-## 📄 License
-
-MIT License - see package.json
