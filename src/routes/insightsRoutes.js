@@ -142,18 +142,66 @@ router.post('/test/news', async (req, res) => {
 // Get trending topics
 router.get('/trends', async (req, res) => {
   try {
-    const days = parseInt(req.query.days) || 7;
-    
+    const days = Number.parseInt(req.query.days) || 7;
+    const format = (req.query.format || 'card').toLowerCase(); // 'card' | 'raw'
+    const limitParam = Number.parseInt(req.query.limit);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 20) : 10;
+
     // Import bigqueryClient directly
     const { default: bigqueryClient } = await import('../gcpclient/bigqueryClient.js');
     const trends = await bigqueryClient.queryTopTrends(days);
-    
-    res.json({
-      success: true,
-      trends,
-      period: `${days} days`,
-      count: trends.length
-    });
+    const top = Array.isArray(trends) ? trends.slice(0, limit) : [];
+
+    // Raw format for backward compatibility
+    if (format === 'raw') {
+      return res.json({
+        success: true,
+        trends: top,
+        period: `${days} days`,
+        count: top.length
+      });
+    }
+
+    // If no data, return empty cards list gracefully
+    if (!top.length) {
+      return res.json({ success: true, cards: [], period: `${days} days`, count: 0 });
+    }
+
+    // Build a concise prompt asking Gemini to format cards exactly
+    const skillsList = top
+      .map((r, i) => `${i + 1}. ${r.skill} — mentions: ${r.mentions}`)
+      .join('\n');
+
+    const prompt = `You are a concise career market analyst. Based on the following skills and their news mention counts from the last ${days} days, output compact "cards" for each skill in EXACTLY this 6-line block format:
+
+<Name>
+<+GrowthPercent%>
+Demand:
+<High|Medium|Low>
+Avg. Salary:
+<$###k+ or $###k-$###k>
+
+Strict formatting rules:
+- Output one block per skill, in the same order as provided, separated by a single blank line.
+- Do NOT include numbering, bullets, commentary, headings, or extra text.
+- "GrowthPercent" is your best short-term estimate vs typical baseline; if uncertain, keep between +0% and +5%.
+- "Avg. Salary" is the US mid-level average using $ and k shorthand (e.g., $110k+).
+- Keep it succinct and realistic. No disclaimers.
+
+Skills and mentions (higher suggests higher demand):
+${skillsList}`;
+
+    // Ask Gemini to produce the cards
+    const gen = await geminiClient.generateContent(prompt, { responseMimeType: 'text/plain' });
+    const text = (gen && gen.text ? String(gen.text) : '').trim();
+
+    // Split output into individual cards (blocks separated by blank line)
+    const cards = text
+      .split(/\n\s*\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    return res.json({ success: true, cards, period: `${days} days`, count: cards.length });
   } catch (error) {
     console.error('Trends error:', error);
     res.status(500).json({
