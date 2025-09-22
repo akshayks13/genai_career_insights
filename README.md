@@ -132,11 +132,6 @@ Use user-provided keywords for industry news (query/q):
 curl "http://localhost:3000/api/overview?q=student%20visa,H1B,OPT&role=masters%20student&interests=usa,education&days=30&limit=8" | jq '.overview.industryNews.personalized'
 ```
 
-Explicit policy focus:
-```bash
-curl "http://localhost:3000/api/overview?policy=student%20visa,immigration,ferpa&role=masters%20student&skills=python&interests=usa,education&days=30" | jq '.overview.governmentPoliciesAndRegulations'
-```
-
 Custom emerging topics:
 ```bash
 curl "http://localhost:3000/api/overview?emerging=ai%20safety,agentic%20workflows,vector%20databases&role=entrepreneur&interests=genai,edtech&days=21" | jq '.overview.emergingTechnologies'
