@@ -11,15 +11,15 @@ class SynthesisService {
    * @param {string} [params.role] - Optional role to tailor guidance
    * @param {string} [params.question] - Optional user question to steer the summary
    */
-  async synthesize({ realTimeText = '', governmentText = '', role = '', question = '', detail = 'standard' } = {}) {
+  async synthesize({ realTimeText = '', governmentText = '', role = '', question = '' } = {}) {
     if (!realTimeText && !governmentText) {
       throw new Error('Provide at least one of realTimeText or governmentText');
     }
 
-    const prompt = this.buildPrompt({ realTimeText, governmentText, role, question, detail });
+  const prompt = this.buildPrompt({ realTimeText, governmentText, role, question });
 
-    // Low temperature for crisp synthesis. Adjust token budget by detail.
-    const tokenBudget = detail === 'short' ? 800 : detail === 'long' ? 2048 : 1400;
+  // Low temperature for crisp synthesis. Use a generous token budget for detailed output.
+  const tokenBudget = 2048;
     const ai = await geminiClient.generateContent(prompt, {
       temperature: 0.3,
       maxTokens: tokenBudget
@@ -43,9 +43,9 @@ class SynthesisService {
     };
   }
 
-  buildPrompt({ realTimeText, governmentText, role, question, detail }) {
-    const lengthHint = detail === 'short' ? '450-650 words' : detail === 'long' ? '800-1100 words' : '600-850 words';
-  return `You are Growgle, act as a pragmatic career coach and policy analyst. Synthesize the two inputs into a single, accessible report for a general audience. Avoid jargon. Be specific. Do not self-reference or include phrases like "As Growgle".
+  buildPrompt({ realTimeText, governmentText, role, question }) {
+    const lengthHint = '900-1200 words';
+  return `Act as a pragmatic career coach and policy analyst. Synthesize the two inputs into a single, accessible report for a general audience. Avoid jargon. Be specific. Do not self-reference or include phrases like "As Growgle".
 
 CONTEXT (real-time career insights)
 ${realTimeText || 'Not provided'}
@@ -58,7 +58,7 @@ USER CONTEXT
 - Question (optional): ${question || 'N/A'}
 
 REQUIREMENTS
-- Cap total length to ${lengthHint} to prevent truncation.
+- Aim for ${lengthHint} of content; prefer completeness.
 - Produce a succinct executive summary (4-5 bullets).
 - Reconcile differences or conflicts between the two sources.
 - Provide a combined, prioritized action plan (5-6 bullets) tailored to the role if provided.

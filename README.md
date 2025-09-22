@@ -186,8 +186,7 @@ Body:
   "realTimeText": "string (optional)",
   "governmentText": "string (optional)",
   "role": "string (optional)",
-  "question": "string (optional)",
-  "detail": "short | standard | long (optional, default: standard)"
+  "question": "string (optional)"
 }
 ```
 
@@ -198,8 +197,7 @@ curl -X POST 'http://localhost:3000/api/synthesis' \
   --data-raw '{
     "realTimeText": "Recent job postings show surging demand for AI platform engineers with experience in vector databases and RAG.",
     "governmentText": "Labor statistics indicate stable growth in software occupations with grants targeting AI in healthcare.",
-    "role": "software engineer",
-    "detail": "standard"
+    "role": "software engineer"
   }' | jq -r '.synthesis.reportMarkdown'
 ```
 
@@ -219,7 +217,7 @@ Response (abridged):
 
 Notes:
 - At least one of `realTimeText` or `governmentText` must be provided.
-- Use `detail=long` for longer outputs; check `finishReason` for truncation.
+ - Output is detailed by default; check `finishReason` to confirm completion.
 
 ## 📊 API Request/Response Examples
 

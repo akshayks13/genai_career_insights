@@ -167,11 +167,11 @@ export default router;
 // Synthesize two text inputs (real-time + government) into a combined report
 router.post('/synthesis', async (req, res) => {
   try {
-    const { realTimeText = '', governmentText = '', role = '', question = '', detail = 'standard' } = req.body || {};
+    const { realTimeText = '', governmentText = '', role = '', question = '' } = req.body || {};
     if (!realTimeText && !governmentText) {
       return res.status(400).json({ success: false, error: 'Provide at least one of realTimeText or governmentText' });
     }
-    const result = await synthesisService.synthesize({ realTimeText, governmentText, role, question, detail });
+    const result = await synthesisService.synthesize({ realTimeText, governmentText, role, question });
     res.json(result);
   } catch (error) {
     console.error('Synthesis error:', error);
