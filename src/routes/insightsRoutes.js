@@ -185,7 +185,7 @@ Strict formatting rules:
 - Output one block per skill, in the same order as provided, separated by a single blank line.
 - Do NOT include numbering, bullets, commentary, headings, or extra text.
 - "GrowthPercent" is your best short-term estimate vs typical baseline; if uncertain, keep between +0% and +5%.
-- "Avg. Salary" is the US mid-level average using $ and k shorthand (e.g., $110k+).
+- "Avg. Salary" is the Indian mid-level average using Rupee (₹) and k shorthand (e.g., ₹110k+).
 - Keep it succinct and realistic. No disclaimers.
 
 Skills and mentions (higher suggests higher demand):
