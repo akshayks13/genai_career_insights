@@ -2,6 +2,7 @@ import express from 'express';
 import careerInsightsService from '../services/careerInsightsService.js';
 import overviewService from '../services/overviewService.js';
 import synthesisService from '../services/synthesisService.js';
+import geminiClient from '../vertexclient/geminiClient.js';
 
 const router = express.Router();
 
@@ -175,6 +176,26 @@ router.post('/synthesis', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Synthesis error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Direct Gemini prompt endpoint (simple pass-through)
+router.post('/prompt', async (req, res) => {
+  try {
+    const { prompt = '', temperature, maxTokens, responseMimeType } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ success: false, error: "Provide non-empty 'prompt' in JSON body" });
+    }
+    const options = {
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(maxTokens !== undefined ? { maxTokens } : {}),
+      ...(responseMimeType ? { responseMimeType } : {})
+    };
+    const result = await geminiClient.generateContent(prompt, options);
+    res.json({ success: true, output: result.text, finishReason: result.finishReason });
+  } catch (error) {
+    console.error('Prompt error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

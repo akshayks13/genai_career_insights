@@ -55,7 +55,8 @@ class GeminiClient {
           temperature: options.temperature ?? 0.7,
           topP: options.topP ?? 0.8,
           topK: options.topK ?? 40,
-          maxOutputTokens: options.maxTokens ?? 1024,
+          ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
+          ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {})
         },
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
