@@ -2,115 +2,47 @@
 
 A modular Express.js application that fetches news articles, stores them in Google Cloud BigQuery, and generates AI-powered career insights using Google Vertex AI (Gemini).
 
-## 🏗️ Project Structure
-
-```
-career_insights/
-├── server.js                  # Entry point
-├── .env                       # Environment variables
-├── package.json              # Dependencies and scripts
-├── .gitignore                # Git ignore rules
-└── src/
-    ├── gcpclient/
-    │   └── bigqueryClient.js   # BigQuery operations
-    ├── vertexclient/
-    │   └── geminiClient.js     # Vertex AI (Gemini) client
-    ├── services/
-  │   ├── careerInsightsService.js  # Career insights (LLM + data)
-  │   └── overviewService.js        # Aggregated data overview (data only)
-    ├── routes/
-    │   └── insightsRoutes.js   # API endpoints
-    └── utils/
-        └── newsApiClient.js    # NewsAPI integration
-```
-
 ## 🚀 Quick Start
 
-### 1. Install Dependencies
 ```bash
-cd career_insights
+# 1) Install
 npm install
-```
 
-### Quick run (copyable)
-```bash
-# from project root
-cd career_insights
-# copy the example env and edit values
-cp .env.example .env
-# install deps
-npm install
-# start in dev mode (requires nodemon) or start
-npm run dev
-```
+# 2) Configure environment
+cp .env.example .env   # then edit values
 
-### 2. Environment Setup
-Update `.env` with your credentials:
-```env
-PROJECT_ID=your-google-cloud-project-id
-NEWS_API_KEY=your-newsapi-key
-```
-
-### 3. Google Cloud Authentication
-Choose one method:
-
-**Option A: Service Account**
-```bash
+# 3) Authenticate to Google Cloud (one of)
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-```
-
-**Option B: Application Default Credentials**
-```bash
+# or
 gcloud auth application-default login
+
+# 4) Run
+npm run dev   # dev (nodemon)
+# or
+npm start     # prod
 ```
 
-### 4. Start the Server
-```bash
-npm run dev  # Development with auto-reload
-npm start    # Production
-```
+## 📡 Key Endpoints
 
-## 📡 API Endpoints
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | API information and available endpoints |
-| GET | `/health` | Basic health check |
-| GET | `/api/status` | Detailed system status |
-
-### Setup & Configuration
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/setup` | Initialize BigQuery dataset and table |
-
-### News & Data Ingestion
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/ingest/news` | Fetch and store news articles |
-| POST | `/api/test/news` | Test news fetching (no storage) |
-| GET | `/api/trends` | Get trending topics from stored data |
-
-### AI Insights
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/insights` | Generate personalized career advice |
-
-### Overview & Aggregations (Data-only)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/overview` | Nested JSON with trending skills, industry news, market insights, policies, and emerging tech |
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/` | API info |
+| GET | `/health` | Health check |
+| GET | `/api/status` | System status (BigQuery, NewsAPI, Vertex AI) |
+| POST | `/api/setup` | Initialize BigQuery dataset/table |
+| POST | `/api/ingest/news` | Fetch + store news articles |
+| POST | `/api/test/news` | Test news fetch (no storage) |
+| GET | `/api/trends` | Trending topics from stored news |
+| GET | `/api/insights` | Generate career advice (query params) |
+| POST | `/api/insights` | Generate career advice (free-text body) |
+| GET | `/api/overview` | Aggregated data-only overview |
+| POST | `/api/synthesis` | Combine two text inputs (real-time + government) into one report |
 
 Notes:
 - This endpoint aggregates data from BigQuery only (no Gemini/LLM calls).
 - Accepts optional query parameters to personalize results.
 
-## 🔧 Usage Examples
+## 🔧 Usage Examples (copy/paste)
 
 ### 1. Initialize the System
 ```bash
@@ -149,9 +81,18 @@ curl -X POST http://localhost:3000/api/ingest/news \
   }'
 ```
 
-### 3. Get Career Insights
+### 3. Get Career Insights (GET)
 ```bash
 curl "http://localhost:3000/api/insights?skills=python,javascript,react&role=software%20engineer&experience=mid-level"
+```
+
+Career Insights (POST, free text only):
+```bash
+curl -X POST 'http://localhost:3000/api/insights' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "profileFreeText": "How can I advance my career to become a top software engineer, and what skills, projects, and strategies should I focus on?"
+  }'
 ```
 
 ### 4. Check System Status
@@ -225,10 +166,60 @@ Query parameters:
 - `limit`: max items per section (default `10`)
 - `query` or `q`: comma-separated keywords for personalized industry news; if omitted, derived from `skills + interests + role`
 - `policy`: comma-separated keywords for Government Policies & Regulations; if omitted, falls back to a curated policy list plus tokens from `interests` and `role`
-- `emerging`: comma-separated keywords for Emerging Technologies; if omitted, defaults to `ai, genai, blockchain, quantum, edge, robotics, biotech`
+- `emerging`: comma-separated keywords for Emerging Technologies; if omitted, sensible defaults are used
 
 Fallback behavior:
 - The service prefers user-provided lists (`query/q`, `policy`, `emerging`). When these are empty, it derives sensible defaults from `skills`, `interests`, and `role` (or curated baselines) to keep results useful.
+
+## 🧩 New: Synthesis (Combine two texts)
+
+Purpose: Send two text chunks (real-time career insights + government dataset insights) and receive a unified, user-friendly Markdown report.
+
+Endpoint:
+```
+POST /api/synthesis
+```
+
+Body:
+```json
+{
+  "realTimeText": "string (optional)",
+  "governmentText": "string (optional)",
+  "role": "string (optional)",
+  "question": "string (optional)",
+  "detail": "short | standard | long (optional, default: standard)"
+}
+```
+
+Example:
+```bash
+curl -X POST 'http://localhost:3000/api/synthesis' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "realTimeText": "Recent job postings show surging demand for AI platform engineers with experience in vector databases and RAG.",
+    "governmentText": "Labor statistics indicate stable growth in software occupations with grants targeting AI in healthcare.",
+    "role": "software engineer",
+    "detail": "standard"
+  }' | jq -r '.synthesis.reportMarkdown'
+```
+
+Response (abridged):
+```json
+{
+  "success": true,
+  "synthesis": {
+    "role": "software engineer",
+    "reportMarkdown": "# Executive Summary...",
+    "finishReason": "STOP"
+  },
+  "inputs": { "realTimeTextLength": 123, "governmentTextLength": 234 },
+  "metadata": { "generatedAt": "2025-09-22T12:34:56Z" }
+}
+```
+
+Notes:
+- At least one of `realTimeText` or `governmentText` must be provided.
+- Use `detail=long` for longer outputs; check `finishReason` for truncation.
 
 ## 📊 API Request/Response Examples
 
@@ -365,39 +356,3 @@ npm test      # Run tests (when implemented)
 2. **Business logic**: Extend `src/services/careerInsightsService.js`
 3. **External APIs**: Add clients to `src/utils/`
 4. **GCP integrations**: Extend clients in `src/gcpclient/` or `src/vertexclient/`
-
-## 🔒 Security Notes
-
-- Store sensitive credentials in `.env` (never commit)
-- Use service accounts with minimal required permissions
-- Implement rate limiting for production deployments
-- Consider API authentication for public deployments
-
-## 📈 Monitoring
-
-The `/api/status` endpoint provides health information for:
-- BigQuery connectivity and data counts
-- NewsAPI key validation
-- Vertex AI authentication
-- Overall system health
-
-## 🚀 Deployment
-
-### Local Development
-Already covered in Quick Start section.
-
-### Google Cloud Run
-1. Build container with Cloud Buildpacks
-2. Set environment variables in Cloud Run service
-3. Ensure proper IAM roles for the service account
-
-### Docker
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3000
-CMD ["npm", "start"]
-```

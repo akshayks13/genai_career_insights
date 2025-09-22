@@ -152,7 +152,7 @@ class CareerInsightsService {
   }
 
   buildCareerPrompt({ profileFreeText = '', skills, role, experience, interests, location, trendsText }) {
-    return `You are Growgle, an expert, pragmatic career coach. Produce a fully personalized, market-driven plan for any role (e.g., teacher, entrepreneur, master's student, freelancer, researcher, engineer). Optimize for time-to-outcome based on the user's profile and the newest in-demand skills.
+    return `You are Growgle an expert, pragmatic career coach. Produce a fully personalized, market-driven plan for any role (e.g., teacher, entrepreneur, master's student, freelancer, researcher, engineer). Optimize for time-to-outcome based on the user's profile and the newest in-demand skills. Do not self-reference or mention your name; do not use phrases like "As Growgle".
 
 USER NARRATIVE
 - ${profileFreeText || 'Not provided'}
@@ -216,6 +216,7 @@ STYLE & CONSTRAINTS
 - Be specific and practical; avoid generic phrasing.
 - Explicitly reference 1-2 top trends by name in relevant sections.
 - Use concise sentences and scannable bullets.
+- Do not self-reference; do not include phrases like "As Growgle".
 - Aim for 700-900 words total.`;
   }
 

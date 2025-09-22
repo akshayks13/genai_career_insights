@@ -1,6 +1,7 @@
 import express from 'express';
 import careerInsightsService from '../services/careerInsightsService.js';
 import overviewService from '../services/overviewService.js';
+import synthesisService from '../services/synthesisService.js';
 
 const router = express.Router();
 
@@ -78,7 +79,7 @@ router.get('/insights', async (req, res) => {
 // POST endpoint to accept long natural-language profile text
 router.post('/insights', async (req, res) => {
   try {
-    const { profileFreeText = '', role = 'software engineer', experience = 'mid-level', skills = '', interests = '', location = '' } = req.body || {};
+    const { profileFreeText = '', role = '', experience = '', skills = '', interests = '', location = '' } = req.body || {};
 
     const userProfile = {
       profileFreeText,
@@ -162,6 +163,21 @@ router.get('/trends', async (req, res) => {
 });
 
 export default router;
+
+// Synthesize two text inputs (real-time + government) into a combined report
+router.post('/synthesis', async (req, res) => {
+  try {
+    const { realTimeText = '', governmentText = '', role = '', question = '', detail = 'standard' } = req.body || {};
+    if (!realTimeText && !governmentText) {
+      return res.status(400).json({ success: false, error: 'Provide at least one of realTimeText or governmentText' });
+    }
+    const result = await synthesisService.synthesize({ realTimeText, governmentText, role, question, detail });
+    res.json(result);
+  } catch (error) {
+    console.error('Synthesis error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Overview endpoint: aggregated nested JSON for frontend dashboards
 router.get('/overview', async (req, res) => {
