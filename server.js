@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import insightsRoutes from './src/routes/insightsRoutes.js';
 
 // Basic env validation & helpful warnings
@@ -21,13 +22,26 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-//handle CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  next();
-});
+const allowAll = (process.env.CORS_ORIGINS || '*') === '*';
+const whitelist = allowAll
+  ? []
+  : process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+
+const corsOptions = {
+  origin: allowAll
+    ? true
+    : function (origin, callback) {
+        if (!origin || whitelist.includes(origin)) return callback(null, true);
+        return callback(new Error('CORS: Origin not allowed'));
+      },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Middleware
 app.use(express.json());
