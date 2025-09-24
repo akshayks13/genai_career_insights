@@ -102,6 +102,38 @@ class OverviewService {
       bigqueryClient.queryVolumeByDay(days)
     ]);
 
+    // Shape industry news to requested structure
+    const formatIndustryItem = (item, idxBase = 0) => ({
+      id: item.id || idxBase,
+      title: item.title,
+      source: item.source,
+      date: this.toRelativeTime(item.published_at || item.publishedAt),
+      category: this.inferCategory(item.tags),
+      impact: this.inferImpact(item.tags, false),
+      summary: (item.body || '').trim()
+    });
+
+    const industryPersonalShaped = Array.isArray(industryNewsPersonal)
+      ? industryNewsPersonal.map((it, i) => formatIndustryItem(it, i + 1))
+      : [];
+    const industryProfileShaped = Array.isArray(industryNewsProfile)
+      ? industryNewsProfile.map((it, i) => formatIndustryItem(it, i + 1))
+      : [];
+
+    // Shape government policies to requested structure
+    const formatPolicyItem = (item) => ({
+      title: item.title,
+      region: this.inferRegion(item.tags) || 'Global',
+      status: 'Active',
+      impact: this.inferImpact(item.tags, true),
+      description: (item.body || '').trim(),
+      deadline: null,
+      relevantRoles: this.inferRelevantRoles(item.tags)
+    });
+    const govPoliciesShaped = Array.isArray(govPolicies)
+      ? govPolicies.map(formatPolicyItem)
+      : [];
+
     return {
       success: true,
       period: { days },
@@ -117,14 +149,14 @@ class OverviewService {
           personalized: trendingPersonal
         },
         industryNews: {
-          personalized: industryNewsPersonal,
-          profileRelated: industryNewsProfile
+          personalized: industryPersonalShaped,
+          profileRelated: industryProfileShaped
         },
         marketInsights: {
           topSources: sources,
           volumeByDay
         },
-        governmentPoliciesAndRegulations: govPolicies,
+        governmentPoliciesAndRegulations: govPoliciesShaped,
         emergingTechnologies: emergingTech
       }
     };
@@ -161,6 +193,78 @@ class OverviewService {
       }
     }
     return Array.from(out);
+  }
+
+  // --- Helpers: simple heuristics for shaping ---
+  toRelativeTime(dateLike) {
+    try {
+      const d = new Date(dateLike);
+      if (isNaN(d.getTime())) return null;
+      const diffMs = Date.now() - d.getTime();
+      const sec = Math.floor(diffMs / 1000);
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min} minutes ago`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr} hours ago`;
+      const day = Math.floor(hr / 24);
+      if (day < 30) return `${day} days ago`;
+      const mo = Math.floor(day / 30);
+      if (mo < 12) return `${mo} months ago`;
+      const yr = Math.floor(mo / 12);
+      return `${yr} years ago`;
+    } catch {
+      return null;
+    }
+  }
+
+  inferCategory(tags = []) {
+    if (!Array.isArray(tags) || tags.length === 0) return 'General';
+    const t = tags.map(x => String(x).toLowerCase());
+    if (t.some(x => x.includes('ai') || x.includes('ml') || x.includes('genai') || x.includes('llm'))) return 'AI/ML';
+    if (t.some(x => x.includes('cloud') || x.includes('aws') || x.includes('azure') || x.includes('gcp'))) return 'Cloud';
+    if (t.some(x => x.includes('security') || x.includes('cyber'))) return 'Security';
+    if (t.some(x => x.includes('data'))) return 'Data';
+    return this.titleCase(tags[0].toString().replace(/[-_]/g, ' '));
+  }
+
+  inferImpact(tags = [], isPolicy = false) {
+    const t = Array.isArray(tags) ? tags.map(x => String(x).toLowerCase()) : [];
+    const highSignals = ['regulation','policy','visa','immigration','h1b','opt','ai','genai','layoff','funding','merger'];
+    if (t.some(x => highSignals.some(sig => x.includes(sig)))) return 'High';
+    if (isPolicy) return 'Medium';
+    return 'Medium';
+  }
+
+  inferRegion(tags = []) {
+    const t = Array.isArray(tags) ? tags.map(x => String(x).toLowerCase()) : [];
+    if (t.some(x => x.includes('us') || x.includes('usa') || x.includes('america'))) return 'United States';
+    if (t.some(x => x.includes('india') || x.includes('in'))) return 'India';
+    if (t.some(x => x.includes('eu') || x.includes('europe'))) return 'European Union';
+    if (t.some(x => x.includes('uk') || x.includes('britain'))) return 'United Kingdom';
+    return null;
+  }
+
+  inferRelevantRoles(tags = []) {
+    const t = Array.isArray(tags) ? tags.map(x => String(x).toLowerCase()) : [];
+    const roles = new Set();
+    if (t.some(x => x.includes('ai') || x.includes('ml') || x.includes('genai'))) {
+      roles.add('AI Engineer');
+      roles.add('Data Scientist');
+    }
+    if (t.some(x => x.includes('policy') || x.includes('regulation') || x.includes('compliance'))) {
+      roles.add('Compliance Officer');
+      roles.add('Policy Analyst');
+    }
+    if (t.some(x => x.includes('visa') || x.includes('immigration'))) {
+      roles.add('International Student');
+      roles.add('Software Engineer');
+    }
+    return Array.from(roles);
+  }
+
+  titleCase(s) {
+    return s.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1));
   }
 }
 
