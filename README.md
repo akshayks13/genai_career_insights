@@ -37,6 +37,9 @@ npm start     # prod
 | POST | `/api/insights` | Generate career advice (free-text body) |
 | GET | `/api/overview` | Aggregated data-only overview |
 | POST | `/api/synthesis` | Combine two text inputs (real-time + government) into one report |
+| POST | `/api/roadmap` | Generate a structured skill development roadmap (LLM) |
+| POST | `/api/prompt` | Direct Gemini (LLM) pass-through prompt |
+| POST | `/api/explore` | Unified consolidated answer (career + external geo/policy) |
 
 Notes:
 - This endpoint aggregates data from BigQuery only (no Gemini/LLM calls).
@@ -165,6 +168,164 @@ Query parameters:
 
 Fallback behavior:
 - The service prefers user-provided lists (`query/q`, `policy`, `emerging`). When these are empty, it derives sensible defaults from `skills`, `interests`, and `role` (or curated baselines) to keep results useful.
+
+### 7. Generate a Roadmap (AI-Generated)
+
+Structured multi-phase upskilling roadmap for a target role. Returns JSON with `roadmap` (phases/milestones) + `certifications`.
+
+Basic example:
+```bash
+curl -X POST http://localhost:3000/api/roadmap \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roadmapName": "Full-Stack Developer",
+    "skills": "HTML,CSS,JavaScript,React",
+    "currentExperience": "6 months frontend"
+  }' | jq
+```
+
+Minimal (model infers everything):
+```bash
+curl -X POST http://localhost:3000/api/roadmap \
+  -H "Content-Type: application/json" \
+  -d '{"roadmapName":"DevOps Engineer"}' | jq
+```
+
+Fields (body):
+- `roadmapName` (or `title` / `role`): target role (required)
+- `skills`: comma-separated or array of existing skills
+- `currentExperience`: free-text description (optional)
+- `targetDuration`: hint like `9 months` (optional)
+
+Response (shape example – abbreviated):
+```json
+{
+  "success": true,
+  "roadmap": {
+    "title": "Full-Stack Developer",
+    "totalDuration": "9 months",
+    "completionRate": 35,
+    "phases": [
+      { "id": 1, "title": "Frontend Fundamentals", "duration": "2 months", "status": "completed", "progress": 100, "milestones": [ { "id": 1, "title": "HTML & CSS Mastery", "type": "course" } ] }
+    ]
+  },
+  "certifications": [
+    { "name": "AWS Cloud Practitioner", "provider": "AWS", "difficulty": "Beginner", "priority": "Recommended" }
+  ]
+}
+```
+
+Error example if model output malformed:
+```json
+{ "success": false, "error": "Failed to parse model JSON", "raw": "...truncated model text..." }
+```
+
+### 8. Direct Prompt (LLM Pass-through)
+
+Send any prompt directly to the configured Gemini model.
+```bash
+curl -X POST http://localhost:3000/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"List 3 concise emerging AI infrastructure trends."}' | jq
+```
+
+Optional body fields:
+- `temperature`: number (e.g. 0.2)
+- `maxTokens`: integer cap (omit for natural length)
+- `responseMimeType`: e.g. `text/markdown` or `application/json`
+
+Response:
+```json
+{ "success": true, "output": "1. ...", "finishReason": "STOP" }
+```
+
+Notes:
+- `/api/roadmap` and `/api/prompt` invoke the LLM; latency & costs depend on model configuration.
+- Keep prompts concise to reduce token usage and avoid truncation.
+
+### 9. Explore (Unified Career + Geo/Policy Consolidation)
+
+Generates one cohesive expert answer by:
+1. Producing internal career insights (skills, trends, advice) using stored news + LLM.
+2. Querying an external geo/policy intelligence API (`GEO_DATA_API_URL` → `/query`).
+3. Synthesizing both sources into a single narrative (no sections or bullets) referencing trends and policy context.
+
+Basic (single consolidated answer):
+```bash
+curl -X POST http://localhost:3000/api/explore \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question":"What are the cybersecurity risks for AI adoption in India?",
+    "profile": { "role": "security engineer", "experience": "mid-level" }
+  }' | jq
+```
+
+Verbose (adds metadata – still only one unified answer, no raw geo payload):
+```bash
+curl -X POST 'http://localhost:3000/api/explore?verbose=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What are the cybersecurity risks for AI adoption in India?","profile":{"role":"security engineer"}}' | jq
+```
+
+Verbose + Debug (includes raw external geo/policy payload for inspection):
+```bash
+curl -X POST 'http://localhost:3000/api/explore?verbose=true&debug=true' \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What are the cybersecurity risks for AI adoption in India?"}' | jq '.geo'
+```
+
+Request body fields:
+- `question` (string) – required for meaningful output.
+- `profile` (object, optional): `{ role, skills, experience, interests, location, profileFreeText }`.
+- Legacy top-level `role`, `skills`, etc. are merged if provided.
+- `includeTrending` (boolean, default `true`) – disable if you want to skip trending skill context.
+
+Query params:
+- `verbose=true` → include metadata (career + geo success flags, timing).
+- `debug=true` (with verbose) → expose raw external payload (`geo.payload`).
+
+Response (non-verbose):
+```json
+{
+  "success": true,
+  "question": "...",
+  "answer": "<single unified narrative>",
+  "generatedAt": "2025-09-29T13:56:41.996Z",
+  "latencyMs": 51272
+}
+```
+
+Response (verbose):
+```json
+{
+  "success": true,
+  "question": "...",
+  "answer": "<single unified narrative>",
+  "career": { "success": true, "articleCount": 1584, "trendingCount": 10 },
+  "geo": { "success": true },
+  "profile": { "role": "security engineer", "experience": "mid-level" },
+  "generatedAt": "2025-09-29T13:56:41.996Z",
+  "latencyMs": 51272,
+  "mode": "verbose"
+}
+```
+
+Verbose + debug (`geo.payload` included) uses `mode: "verbose+debug"`.
+
+Timeouts & Control:
+- External geo request timeout defaults to 45s. Adjust with `GEO_QUERY_TIMEOUT_MS` (set `0` for no timeout—use with caution).
+- If the external service is missing or times out, the unified answer still returns (with a brief acknowledgement once, no second answer).
+
+Design Choices:
+- Always returns a single human-readable answer to avoid duplication or multi-part confusion.
+- Raw geo/policy result hidden unless debug mode enabled.
+- No markdown to avoid model MIME constraints; output is plain text.
+
+Potential Extensions (not yet implemented):
+- `concise=true` query param for ultra-short summaries.
+- Streaming response mode (Server-Sent Events or chunked transfer).
+- Caching layer for identical question/profile pairs.
+
 
 ## 🧩 New: Synthesis (Combine two texts)
 
@@ -297,6 +458,8 @@ GET /api/insights?skills=python,machine-learning&role=data-scientist&experience=
 | `LOCATION` | Google Cloud region | `us-central1` | ❌ |
 | `VERTEX_GEN_MODEL` | Vertex AI model name | `gemini-1.5-pro` | ❌ |
 | `PORT` | Server port | `3000` | ❌ |
+| `GEO_DATA_API_URL` | Base URL of external geo/policy enrichment service (must expose POST /query) | - | ❌ |
+| `GEO_QUERY_TIMEOUT_MS` | Timeout (ms) for geo/policy request (0 = no timeout) | `45000` | ❌ |
 
 ## 🧪 Testing
 

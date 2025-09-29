@@ -388,3 +388,143 @@ router.get('/overview', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// Explore endpoint: combines internal career insights + external geo/policy Q&A then synthesizes
+router.post('/explore', async (req, res) => {
+  const started = Date.now();
+  try {
+    const {
+      question = 'What are the most relevant insights for career planning today?',
+      profile = {}, // { role, skills, experience, interests, location, profileFreeText }
+      role, skills, experience, interests, location, profileFreeText,
+      includeTrending = true
+    } = req.body || {};
+
+    // Merge legacy top-level fields into profile object if provided
+    const mergedProfile = {
+      profileFreeText: profile.profileFreeText || profileFreeText || '',
+      role: profile.role || role || 'professional',
+      skills: profile.skills || skills || '',
+      experience: profile.experience || experience || 'mid-level',
+      interests: profile.interests || interests || '',
+      location: profile.location || location || ''
+    };
+
+    // 1) Generate internal career insights (reusing existing service)
+    let careerData;
+    try {
+      careerData = await careerInsightsService.generateCareerInsights(mergedProfile);
+    } catch (ciErr) {
+      console.warn('Career insights generation failed inside /explore:', ciErr.message);
+      careerData = { success: false, error: ciErr.message };
+    }
+
+    // 2) Call external GEO/POLICY API /query endpoint (longer / configurable timeout)
+    const geoBase = (process.env.GEO_DATA_API_URL || '').replace(/\/$/, '');
+    const geoTimeoutMs = Number(process.env.GEO_QUERY_TIMEOUT_MS || 45000); // extend default to 45s
+    let geoPayload = null;
+    let geoError = null;
+    if (!geoBase) {
+      geoError = 'GEO_DATA_API_URL not configured';
+    } else {
+      try {
+        let controller; let timeoutId;
+        if (geoTimeoutMs > 0) {
+          controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), geoTimeoutMs);
+        }
+        const resp = await fetch(`${geoBase}/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+          signal: controller ? controller.signal : undefined
+        });
+        if (timeoutId) clearTimeout(timeoutId);
+        const ct = resp.headers.get('content-type') || '';
+        const text = await resp.text();
+        if (!resp.ok) {
+          geoError = `Geo API ${resp.status}`;
+        }
+        try {
+          geoPayload = ct.includes('application/json') ? JSON.parse(text) : { raw: text };
+        } catch (pErr) {
+          geoPayload = { raw: text };
+        }
+      } catch (geoErrInner) {
+        if (geoErrInner.name === 'AbortError') {
+          geoError = `Geo API timeout after ${geoTimeoutMs}ms (set GEO_QUERY_TIMEOUT_MS to adjust or 0 for no timeout)`;
+        } else {
+          geoError = geoErrInner.message;
+        }
+      }
+    }
+
+    const careerAdvice = careerData?.insights?.aiAdvice || 'No career insights available.';
+    const trending = includeTrending ? (careerData?.insights?.trending || []) : [];
+    const articleCount = careerData?.insights?.metadata?.articleCount || 0;
+
+    // 3) Consolidate with Gemini
+    const consolidationPrompt = `You are a senior analyst. Produce ONE unified, cohesive plain-text answer that blends all available signals.
+QUESTION: ${question}
+
+CAREER INSIGHTS (market & skill guidance):
+${careerAdvice.substring(0, 6000)}
+
+GEO/POLICY RESPONSE RAW:
+${geoError ? '[Unavailable: ' + geoError + ']' : JSON.stringify(geoPayload).substring(0, 6000)}
+
+TOP TRENDING SKILLS:
+${trending.slice(0,10).map(t=>`${t.skill} (${t.mentions})`).join(', ') || 'None'}
+
+INSTRUCTIONS:
+- Return ONLY a single consolidated answer (no headings, no bullet lists, no numbered sections, no labels like 'Direct Answer:' etc.).
+- Weave together market signals, geo/policy context, risks, mitigations, and 5-8 actionable recommendations inline (you may use short sentences separated by periods or semicolons).
+- If geo/policy data is missing, acknowledge briefly once and continue with what is known.
+- Focus on specificity for India where relevant (e.g., regulation, data protection, workforce skill gaps) without overgeneralizing.
+- Mention the most relevant trending skills naturally (not as a list) where they reinforce recommendations.
+- Avoid filler, self-reference, disclaimers, markdown, bullets, or section titles.
+- Output should read like a concise expert briefing; use paragraphs if needed but still a single unified narrative.`;
+
+    let consolidated;
+    try {
+      const gen = await geminiClient.generateContent(consolidationPrompt, { temperature: 0.45 });
+      consolidated = gen?.text || '';
+    } catch (modelErr) {
+      return res.status(500).json({ success: false, error: 'Consolidation model failed', details: modelErr.message });
+    }
+
+    // Verbose mode: show metadata but suppress raw geo answer to avoid perceived "two answers" unless debug=true
+    if (req.query.verbose === 'true') {
+      const debug = req.query.debug === 'true' || req.query.debug === '1';
+      let geoMeta;
+      if (debug) {
+        geoMeta = { success: !geoError, error: geoError || undefined, payload: geoPayload };
+      } else {
+        geoMeta = { success: !geoError, error: geoError || undefined };
+      }
+      return res.json({
+        success: true,
+        question,
+        answer: consolidated,
+        career: { success: !!careerData?.success, articleCount, trendingCount: trending.length },
+        geo: geoMeta,
+        profile: mergedProfile,
+        generatedAt: new Date().toISOString(),
+        latencyMs: Date.now() - started,
+        mode: debug ? 'verbose+debug' : 'verbose'
+      });
+    }
+
+    return res.json({
+      success: true,
+      question,
+      answer: consolidated,
+      generatedAt: new Date().toISOString(),
+      latencyMs: Date.now() - started
+    });
+  } catch (error) {
+    console.error('Explore error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
