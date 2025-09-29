@@ -248,6 +248,124 @@ router.post('/prompt', async (req, res) => {
   }
 });
 
+// Roadmap generation endpoint
+router.post('/roadmap', async (req, res) => {
+  try {
+    const {
+      roadmapName = '', // e.g., "Full-Stack Developer"
+      title,            // alias
+      role,             // fallback alias
+      skills = '',      // comma-separated string or array
+      currentExperience = '',
+      targetDuration = '' // optional (e.g., "6 months")
+    } = req.body || {};
+
+    const requestedTitle = (roadmapName || title || role || '').trim();
+    if (!requestedTitle) {
+      return res.status(400).json({ success: false, error: 'Provide roadmapName (or title/role) in the request body.' });
+    }
+
+    let userSkills = [];
+    if (Array.isArray(skills)) {
+      userSkills = skills.map(s => String(s).trim()).filter(Boolean);
+    } else if (typeof skills === 'string') {
+      userSkills = skills.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    // Build strict JSON-output prompt
+    const prompt = `You are an expert career curriculum architect. Build a structured, realistic upskilling roadmap.
+Target Role / Roadmap: ${requestedTitle}
+User Skills (existing): ${userSkills.length ? userSkills.join(', ') : 'None provided'}
+User Experience: ${currentExperience || 'Not specified'}
+Preferred Total Duration (optional hint): ${targetDuration || 'Not specified'}
+
+OUTPUT REQUIREMENTS:
+Return ONLY valid minified JSON (no markdown, no commentary before/after). Shape:
+{
+  "roadmapData": {
+    "title": string,
+    "totalDuration": string, // e.g. "12 months"
+    "completionRate": number, // 0-100 integer
+    "phases": [
+      {
+        "id": number,
+        "title": string,
+        "duration": string, // e.g. "3 months"
+        "status": "completed" | "in-progress" | "pending",
+        "progress": number, // 0-100
+        "milestones": [
+          {
+            "id": number,
+            "title": string,
+            "type": "course" | "project" | "certification" | "reading" | "practice",
+            "duration": string, // e.g. "3 weeks"
+            "status": "completed" | "in-progress" | "pending",
+            "provider": string
+          }
+        ]
+      }
+    ]
+  },
+  "certifications": [
+    {
+      "name": string,
+      "provider": string,
+      "difficulty": "Beginner" | "Intermediate" | "Advanced",
+      "duration": string,
+      "value": "High" | "Medium" | "Low",
+      "priority": "Recommended" | "Optional" | "Stretch"
+    }
+  ]
+}
+
+LOGIC & RULES:
+- 4-6 phases total. Order them logically (fundamentals -> specialization -> integration -> professional polish).
+- A phase or milestone is 'completed' only if its core skills are already in user skills. Partially covered => 'in-progress'. Others 'pending'.
+- completionRate (%) should reflect weighted progress over all milestones.
+- Milestone durations: use weeks for granular items; phase duration sum should roughly match totalDuration.
+- If no targetDuration provided, choose a realistic total (e.g., 6, 9, or 12 months) based on breadth.
+- Ensure IDs are unique and sequential across milestones (phase ordering preserved) but milestone IDs must not reset inside a phase in a way that conflicts.
+- Tailor content to ${requestedTitle}. Avoid generic filler.
+- Include at least 1 project milestone each phase (except possibly a pure certification phase).
+- Keep provider names credible (Official Docs, freeCodeCamp, Coursera, AWS, etc.).
+- Output VALID JSON ONLY.`;
+
+    let aiRaw;
+    try {
+      aiRaw = await geminiClient.generateContent(prompt, {
+        responseMimeType: 'application/json',
+        temperature: 0.4,
+        maxTokens: 4000
+      });
+    } catch (modelErr) {
+      console.error('Roadmap model call failed:', modelErr);
+      return res.status(500).json({ success: false, error: 'Model generation failed', details: modelErr.message });
+    }
+
+    const rawText = (aiRaw && aiRaw.text ? aiRaw.text.trim() : '');
+    if (!rawText) {
+      return res.status(500).json({ success: false, error: 'Empty response from model' });
+    }
+
+    // Attempt robust JSON parse (strip leading/trailing non-json if any)
+    let parsed;
+    try {
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      const candidate = firstBrace >= 0 && lastBrace > firstBrace ? rawText.slice(firstBrace, lastBrace + 1) : rawText;
+      parsed = JSON.parse(candidate);
+    } catch (parseErr) {
+      console.error('Roadmap JSON parse failed. Raw text:');
+      return res.status(502).json({ success: false, error: 'Failed to parse model JSON', raw: rawText });
+    }
+
+    return res.json({ success: true, roadmap: parsed.roadmapData, certifications: parsed.certifications || [], finishReason: aiRaw.finishReason });
+  } catch (error) {
+    console.error('Roadmap generation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Overview endpoint: aggregated nested JSON for frontend dashboards
 router.get('/overview', async (req, res) => {
   try {
