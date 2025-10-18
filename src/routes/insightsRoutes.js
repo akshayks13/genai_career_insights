@@ -464,7 +464,16 @@ router.post('/explore', async (req, res) => {
     const articleCount = careerData?.insights?.metadata?.articleCount || 0;
 
     // 3) Consolidate with Gemini
-    const consolidationPrompt = `You are a senior analyst. Produce ONE unified, cohesive plain-text answer that blends all available signals.
+    const consolidationPrompt = `You are a Grwogle - a senior career adviser.
+
+INTENT CHECK (do this first):
+- If the QUESTION is a greeting or not a specific query (for example, fewer than ~6 words and no clear ask), return a very short plain-text guidance message and STOP. Keep it to 2-4 lines, like:
+  Hi! Ask a specific career or market question and I'll consolidate signals (news + geo/policy) into one clear answer.
+  Examples: What are the top risks and mitigations for AI adoption in India? Which 3 skills should a <role> focus on over the next 6 months and why?
+  You can also ask about how upcoming data protection rules affect hiring for <role> in India.
+
+Otherwise, produce ONE unified, cohesive plain-text answer that blends all available signals.
+
 QUESTION: ${question}
 
 CAREER INSIGHTS (market & skill guidance):
@@ -476,14 +485,14 @@ ${geoError ? '[Unavailable: ' + geoError + ']' : JSON.stringify(geoPayload).subs
 TOP TRENDING SKILLS:
 ${trending.slice(0,10).map(t=>`${t.skill} (${t.mentions})`).join(', ') || 'None'}
 
-INSTRUCTIONS:
+INSTRUCTIONS FOR THE UNIFIED ANSWER:
 - Return ONLY a single consolidated answer (no headings, no bullet lists, no numbered sections, no labels like 'Direct Answer:' etc.).
-- Weave together market signals, geo/policy context, risks, mitigations, and 5-8 actionable recommendations inline (you may use short sentences separated by periods or semicolons).
+- Weave together market signals, geo/policy context, risks, mitigations, and 5-8 concrete recommendations inline (short sentences separated by periods or semicolons are fine).
 - If geo/policy data is missing, acknowledge briefly once and continue with what is known.
-- Focus on specificity for India where relevant (e.g., regulation, data protection, workforce skill gaps) without overgeneralizing.
+- Focus on specifics for India where relevant (regulations, data protection, workforce skill gaps) without overgeneralizing.
 - Mention the most relevant trending skills naturally (not as a list) where they reinforce recommendations.
 - Avoid filler, self-reference, disclaimers, markdown, bullets, or section titles.
-- Output should read like a concise expert briefing; use paragraphs if needed but still a single unified narrative.`;
+- Output should read like a concise expert briefing; use one or more paragraphs but keep it a single unified narrative.`;
 
     let consolidated;
     try {
@@ -496,12 +505,9 @@ INSTRUCTIONS:
     // Verbose mode: show metadata but suppress raw geo answer to avoid perceived "two answers" unless debug=true
     if (req.query.verbose === 'true') {
       const debug = req.query.debug === 'true' || req.query.debug === '1';
-      let geoMeta;
-      if (debug) {
-        geoMeta = { success: !geoError, error: geoError || undefined, payload: geoPayload };
-      } else {
-        geoMeta = { success: !geoError, error: geoError || undefined };
-      }
+      const geoMeta = debug
+        ? { success: !geoError, error: geoError || undefined, payload: geoPayload }
+        : { success: !geoError, error: geoError || undefined };
       return res.json({
         success: true,
         question,
