@@ -212,8 +212,6 @@ ${skillsList}`;
   }
 });
 
-export default router;
-
 // Synthesize two text inputs (real-time + government) into a combined report
 router.post('/synthesis', async (req, res) => {
   try {
@@ -321,8 +319,9 @@ router.post('/explore', async (req, res) => {
     if (!geoBase) {
       geoError = 'GEO_DATA_API_URL not configured';
     } else {
+      let timeoutId;
       try {
-        let controller; let timeoutId;
+        let controller;
         if (geoTimeoutMs > 0) {
           controller = new AbortController();
           timeoutId = setTimeout(() => controller.abort(), geoTimeoutMs);
@@ -333,7 +332,6 @@ router.post('/explore', async (req, res) => {
           body: JSON.stringify({ question }),
           signal: controller ? controller.signal : undefined
         });
-        if (timeoutId) clearTimeout(timeoutId);
         const ct = resp.headers.get('content-type') || '';
         const text = await resp.text();
         if (!resp.ok) {
@@ -350,6 +348,8 @@ router.post('/explore', async (req, res) => {
         } else {
           geoError = geoErrInner.message;
         }
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
     }
 
@@ -427,4 +427,6 @@ INSTRUCTIONS FOR THE UNIFIED ANSWER:
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+export default router;
 

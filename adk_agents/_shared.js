@@ -259,6 +259,31 @@ function makeTools() {
     }
   });
 
+  const optimizeResumeTool = makeTool({
+    name: 'optimizeResume',
+    description: 'Optimizes a resume for ATS and a target role/job description.',
+    parameters: {
+      type: 'object',
+      properties: {
+        resumeText: { type: 'string', description: 'Raw resume text (plain text or LaTeX).' },
+        targetRole: { type: 'string', description: 'Target role/title to optimize for (optional but recommended).' },
+        jobDescription: { type: 'string', description: 'Job description text to align keywords to (optional).' }
+      },
+      required: ['resumeText']
+    },
+    execute: async ({ resumeText, targetRole = '', jobDescription = '' }) => {
+      const resume = String(resumeText || '').trim();
+      if (!resume) throwAdkJsonError(400, "'resumeText' is required");
+      const svc = (await importService('resumeOptimizationService.js')).default;
+      const out = await svc.optimize({
+        resumeText: resume,
+        targetRole: String(targetRole || '').trim(),
+        jobDescription: String(jobDescription || '').trim(),
+      });
+      return normalizeToolResult(out?.result);
+    }
+  });
+
   return {
     ingestNewsTool,
     ingestJobsTool,
@@ -271,6 +296,7 @@ function makeTools() {
     getTrendingSkillsTool,
     getLatestJobsTool,
     validateSkillsAgainstMarketTool,
+    optimizeResumeTool,
   };
 }
 

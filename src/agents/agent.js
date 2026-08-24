@@ -2,15 +2,12 @@ import { config } from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ADK Web imports this file directly for agent discovery.
-// Ensure env vars are loaded before importing any services/clients.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 config({ path: path.resolve(__dirname, '../../.env') });
 
 const { LlmAgent, FunctionTool } = await import('@google/adk');
 const tools = await import('./tools.js');
 
-// Define tools
 const newsTool = new FunctionTool(tools.ingestNewsTool);
 const jobsTool = new FunctionTool(tools.ingestJobsTool);
 const insightsTool = new FunctionTool(tools.getCareerInsightsTool);

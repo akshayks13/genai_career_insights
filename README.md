@@ -813,7 +813,7 @@ GET /api/insights?skills=python,machine-learning&role=data-scientist&experience=
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `PROJECT_ID` | Google Cloud Project ID | - | ✅ |
-| `NEWSAPI_KEY` | NewsAPI.org API key | - | ✅ |
+| `NEWS_API_KEY` | NewsAPI.org API key | - | ✅ |
 | `BQ_DATASET` | BigQuery dataset name | `career_insights` | ❌ |
 | `BQ_NEWS_TABLE` | BigQuery table name | `news_articles` | ❌ |
 | `LOCATION` | Google Cloud region | `us-central1` | ❌ |

@@ -92,6 +92,10 @@ app.use('/api/jobs', jobsRoutes);
 
 // Agent endpoint
 const activeRunners = new Map(); // Store runners by sessionId
+// Cap the number of cached runners to avoid unbounded memory growth. Oldest
+// sessions are evicted first (Map preserves insertion order).
+const MAX_ACTIVE_RUNNERS = Number(process.env.MAX_ACTIVE_RUNNERS) || 500;
+const DEBUG_AGENT = process.env.DEBUG_AGENT === '1';
 
 function extractToolResponsesFromEvent(event) {
   const out = [];
@@ -243,19 +247,21 @@ app.post('/api/agent/:name', async (req, res) => {
 
   try {
     const userId = 'user-1';
-    // Use provided sessionId or generate a new one
     const sessionId = providedSessionId || `session-${Date.now()}`;
     
     let runner;
     if (activeRunners.has(sessionId)) {
       runner = activeRunners.get(sessionId);
-      // Optional: Check if the runner is for the same agent. 
-      // For simplicity, we assume the session is tied to the agent it started with.
     } else {
+      while (activeRunners.size >= MAX_ACTIVE_RUNNERS) {
+        const oldestKey = activeRunners.keys().next().value;
+        if (oldestKey === undefined) break;
+        activeRunners.delete(oldestKey);
+      }
+
       runner = new InMemoryRunner({ agent });
       activeRunners.set(sessionId, runner);
-      
-      // Initialize session for new runner
+
       await runner.sessionService.createSession({
         appName: runner.appName,
         userId,
@@ -272,23 +278,21 @@ app.post('/api/agent/:name', async (req, res) => {
     let finalResponse = '';
     const toolResponses = new Map();
     for await (const event of iterator) {
-      console.log('Agent Event:', JSON.stringify(event, null, 2));
+      if (DEBUG_AGENT) console.log('Agent Event:', JSON.stringify(event, null, 2));
 
-      // Capture tool responses (so we can return strict JSON deterministically)
+      // Capture tool responses for strict-JSON agents
       const extracted = extractToolResponsesFromEvent(event);
       for (const tr of extracted) {
         if (!tr?.name) continue;
         toolResponses.set(tr.name, tr.response);
       }
       
-      // Collect model responses
       if (event.content && event.content.role === 'model') {
-        const textParts = event.content.parts.map(p => p.text || '').join('');
+        const textParts = (event.content.parts?.map(p => p.text || '') || []).join('');
         finalResponse += textParts;
       }
     }
 
-    // For strict-schema agents, prefer the tool response.
     if (name === 'resumeOptimizationAgent' && toolResponses.has('optimizeResume')) {
       return res.json({ success: true, result: toolResponses.get('optimizeResume'), sessionId });
     }

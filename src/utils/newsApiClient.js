@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { randomUUID } from 'node:crypto';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const BASE_URL = 'https://newsapi.org/v2';
@@ -90,8 +91,8 @@ class NewsApiClient {
         article.description &&
         article.source?.name
       )
-      .map((article, index) => ({
-        id: `${Date.now()}_${index}`,
+      .map((article) => ({
+        id: randomUUID(),
         title: this.cleanText(article.title),
         body: this.cleanText(article.description || article.content || ''),
         source: article.source.name,
@@ -143,8 +144,8 @@ class NewsApiClient {
     if (!text) return '';
     
     return text
-      .replace(/\\[\\+\\d+\\s+chars\\]/g, '') // Remove [+xxx chars]
-      .replace(/\\s+/g, ' ')                   // Normalize whitespace
+      .replace(/\[\+\d+\s+chars\]/g, '') // Remove [+xxx chars]
+      .replace(/\s+/g, ' ')              // Normalize whitespace
       .trim();
   }
 

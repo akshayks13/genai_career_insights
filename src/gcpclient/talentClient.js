@@ -22,7 +22,8 @@ class TalentClient {
 
     // Try to reuse if externalId already exists
     try {
-      const [companies] = await this.companyClient.listCompanies({ parent, filter: `externalId = \"${ext}\"` });
+      const extSafe = String(ext).replace(/"/g, '');
+      const [companies] = await this.companyClient.listCompanies({ parent, filter: `externalId = "${extSafe}"` });
       if (Array.isArray(companies) && companies.length > 0 && companies[0].name) {
         return companies[0].name;
       }

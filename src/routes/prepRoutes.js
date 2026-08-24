@@ -5,7 +5,7 @@ import interviewPrepService from '../services/interviewPrepService.js';
 
 const router = express.Router();
 
-// Resume Optimization (normal service) - ATS score + improvements
+// Resume optimization
 router.post('/resume/optimize', async (req, res) => {
   try {
     const { resumeText = '', targetRole = '', jobDescription = '' } = req.body || {};
@@ -20,14 +20,14 @@ router.post('/resume/optimize', async (req, res) => {
   }
 });
 
-// End-to-End Job Prep (normal service) - gap analysis → learning plan → job search
+// Job / startup prep
 router.post('/job-prep', async (req, res) => {
   try {
-    const { targetRole = '', currentSkills = '', experience = '', location = '', targetDuration = '' } = req.body || {};
+    const { targetRole = '', currentSkills = '', experience = '', location = '', targetDuration = '', careerPath = 'job' } = req.body || {};
     if (!targetRole || typeof targetRole !== 'string' || !targetRole.trim()) {
       return res.status(400).json({ success: false, error: 'Provide non-empty targetRole' });
     }
-    const result = await jobPrepService.run({ targetRole, currentSkills, experience, location, targetDuration });
+    const result = await jobPrepService.run({ targetRole, currentSkills, experience, location, targetDuration, careerPath });
     res.json(result);
   } catch (error) {
     console.error('Job prep error:', error);
@@ -40,7 +40,7 @@ router.post('/job-prep', async (req, res) => {
   }
 });
 
-// Interview Prep from a specific job object (normal service)
+// Interview prep from a job object
 router.post('/interview-prep', async (req, res) => {
   try {
     // Accept either { job: {...} } or the job object directly.

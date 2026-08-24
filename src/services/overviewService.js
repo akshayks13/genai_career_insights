@@ -84,7 +84,6 @@ class OverviewService {
       trendingGeneral,
       trendingPersonal,
       industryNewsPersonal,
-      marketInsights,
       industryNewsProfile,
       govPolicies,
       emergingTech,
@@ -94,10 +93,9 @@ class OverviewService {
       bigqueryClient.queryTopSkillsFiltered(days, limit, []),
       bigqueryClient.queryTopSkillsFiltered(days, limit, likedSkills),
       bigqueryClient.queryArticlesByKeywords(keywords, days, limit),
-      bigqueryClient.queryTopSources(days, limit),
-  bigqueryClient.queryArticlesByTags(likedSkills, days, Math.min(limit, 10)),
-  bigqueryClient.queryArticlesByKeywords(policyKeywords, days, Math.min(limit, 10)),
-  bigqueryClient.queryArticlesByKeywords(emergingKeywords, days, Math.min(limit, 10)),
+      bigqueryClient.queryArticlesByTags(likedSkills, days, Math.min(limit, 10)),
+      bigqueryClient.queryArticlesByKeywords(policyKeywords, days, Math.min(limit, 10)),
+      bigqueryClient.queryArticlesByKeywords(emergingKeywords, days, Math.min(limit, 10)),
       bigqueryClient.queryTopSources(days, 5),
       bigqueryClient.queryVolumeByDay(days)
     ]);

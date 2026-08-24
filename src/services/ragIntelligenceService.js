@@ -32,9 +32,9 @@ class RagIntelligenceService {
     if (!geoBase) {
       geoError = 'GEO_DATA_API_URL not configured';
     } else {
+      let timeoutId;
       try {
         let controller;
-        let timeoutId;
         if (geoTimeoutMs > 0) {
           controller = new AbortController();
           timeoutId = setTimeout(() => controller.abort(), geoTimeoutMs);
@@ -46,8 +46,6 @@ class RagIntelligenceService {
           body: JSON.stringify({ question: q }),
           signal: controller ? controller.signal : undefined
         });
-
-        if (timeoutId) clearTimeout(timeoutId);
 
         const ct = resp.headers.get('content-type') || '';
         const text = await resp.text();
@@ -67,6 +65,8 @@ class RagIntelligenceService {
         } else {
           geoError = geoErrInner?.message || String(geoErrInner);
         }
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
     }
 

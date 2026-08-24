@@ -6,8 +6,6 @@ import roadmapService from '../services/roadmapService.js';
 import ragIntelligenceService from '../services/ragIntelligenceService.js';
 import resumeOptimizationService from '../services/resumeOptimizationService.js';
 
-// Tool definitions
-
 function normalizeToolResult(result) {
   if (result === undefined) return {};
   if (result === null) return { value: null };
@@ -65,8 +63,7 @@ export const getCareerInsightsTool = {
       experience: { type: 'string', description: 'Experience level (e.g., "mid-level").' },
       profileFreeText: { type: 'string', description: 'Additional context about the user.' }
     },
-    // NOTE: @google/genai rejects schemas that contain both `type` and `anyOf`.
-    // We'll validate this requirement at runtime instead.
+    // Validate role or profileFreeText at runtime (schema cannot use anyOf).
   },
   execute: async (userProfile) => {
     const hasRole = Boolean(userProfile?.role && String(userProfile.role).trim());
@@ -151,7 +148,7 @@ export const getOverviewTool = {
     required: []
   },
   execute: async ({ industry, role, skills }) => {
-    // Map industry to query as overviewService uses query for keywords
+    // Map industry → overview query keywords
     return normalizeToolResult(await overviewService.getOverview({ query: industry, role, skills }));
   }
 };
@@ -332,7 +329,6 @@ export const optimizeResumeTool = {
       jobDescription: String(jobDescription || '').trim(),
     });
 
-    // Return ONLY the schema object (atsScore, keywordGap, etc.).
     return normalizeToolResult(out?.result);
   }
 };

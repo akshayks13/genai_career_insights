@@ -1,6 +1,5 @@
 import jobsBigQueryClient from '../gcpclient/jobsBigQueryClient.js';
 import talentClient from '../gcpclient/talentClient.js';
-import jobsBQ from '../gcpclient/jobsBigQueryClient.js';
 
 // Fetch jobs from RapidAPI jsearch and insert to BigQuery
 export async function fetchAndIngestRapidJobs({ query = 'software engineer in india', page = 1 } = {}) {
@@ -111,8 +110,8 @@ export async function talentSearchJobs(params) {
 
 // Sync jobs stored in BigQuery into Google Talent (create companies+jobs)
 export async function syncBqToTalent({ limit = 50, since, dryRun = false } = {}) {
-  await jobsBQ.ensureDatasetAndTable();
-  const rows = await jobsBQ.fetchJobsForSync({ limit, since });
+  await jobsBigQueryClient.ensureDatasetAndTable();
+  const rows = await jobsBigQueryClient.fetchJobsForSync({ limit, since });
   const unique = new Map();
   for (const r of rows) {
     const key = r.job_id || `${r.title}|${r.company_name}`;
@@ -152,15 +151,15 @@ export async function syncBqToTalent({ limit = 50, since, dryRun = false } = {})
 
 // BigQuery: fetch latest N jobs (ordered by ingested_at DESC)
 export async function bqFetchLatestJobs({ limit = 50 } = {}) {
-  await jobsBQ.ensureDatasetAndTable();
-  const rows = await jobsBQ.fetchRandomJobs({ limit: Number(limit) || 50 });
+  await jobsBigQueryClient.ensureDatasetAndTable();
+  const rows = await jobsBigQueryClient.fetchJobsForSync({ limit: Number(limit) || 50 });
   return rows;
 }
 
 // BigQuery: search ingested jobs by query/location
 export async function bqSearchIngestedJobs({ query = '', location = '', limit = 20 } = {}) {
-  await jobsBQ.ensureDatasetAndTable();
-  const rows = await jobsBQ.searchJobs({ query, location, limit: Number(limit) || 20 });
+  await jobsBigQueryClient.ensureDatasetAndTable();
+  const rows = await jobsBigQueryClient.searchJobs({ query, location, limit: Number(limit) || 20 });
   return rows;
 }
 
